@@ -9,6 +9,7 @@ A connected system combining a return-risk model, a product-image classifier, an
 
 ## Part 1: Return-Risk Model
 *(instructions to be added)*
+Run 01_preprocessing.ipynb first to generate the split/transformed data files in data/ (not tracked in git) before running any of the model notebooks.
 
 ## Part 2: Product-Image Classifier
 *(instructions to be added)*
