@@ -1,7 +1,3 @@
-from pathlib import Path
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-output_path = DATA_DIR / "orders_dataset.csv"
 import numpy as np
 import pandas as pd
 rng = np.random.default_rng(42)
@@ -48,3 +44,4 @@ df = pd.DataFrame({
 })
 df.to_csv("../data/orders_dataset.csv", index=False)
 print("Rows:", len(df), "| Return rate:", round(df["returned"].mean(), 4))
+
