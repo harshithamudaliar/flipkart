@@ -13,7 +13,22 @@ Run 01_preprocessing.ipynb first to generate the split/transformed data files in
 
 ## Part 2: Product-Image Classifier
 *(instructions)*
-Run part2-image-classifier's train_image_classifier.py to auto download FashionMNIST/ and load data
+-Run part2-image-classifier's train_image_classifier.py to auto download FashionMNIST/ and load data
+#Dataset
+-  Fashion-MNIST (Zalando Research)-48,000 train / 12,000 validation (stratified 20% split of the 60,000 training images) / 10,000 test 
+-# Model
+- **Backbone:** EfficientNet-B0 (`IMAGENET1K_V1` weights), all layers frozen
+- **Head:** `Linear(1280→128) → ReLU → Dropout(0.3) → Linear(128→10)`
+- **Training:** backbone features cached once, head trained on cached
+  features for 10 epochs, batch size 64, Adam optimizer, lr=1e-3
+# Results
+- Validation accuracy : 92.63%
+- Feature extraction alone exceeded the 80% threshold, so fine-tuning of   the backbone's late layers was not required.
+- Final test accuracy: 91.91%
+
+# Confusion Matrix & Analysis
+Full 10×10 confusion matrix and per-class precision/recall are in
+`notebooks/05_classify_product_image`.
 
 ## Part 3: LangGraph Support Agent
 *(instructions to be added)*
