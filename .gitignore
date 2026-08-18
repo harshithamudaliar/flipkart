@@ -18,3 +18,6 @@ Thumbs.db
 .vscode/
 
 data/*.pkl
+
+#flipkart agent
+data/policy_index.faiss

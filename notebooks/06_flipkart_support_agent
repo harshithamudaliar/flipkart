@@ -1,0 +1,39 @@
+import json
+from sentence_transformers import SentenceTransformer
+import faiss
+import numpy as np
+
+#load document as JSON
+document_path = "data/policy_knowledgebase.json"
+with open(document_path, "r") as f:
+    kb = json.load(f)
+
+documents = kb["documents"]
+
+#chunking documents and mapping to source doc
+chunks= []
+chunk_to_doc= {}
+for doc in documents:
+    for i, chunk in enumerate(doc["chunks"]):
+        chunk_id= f"{doc['doc_id']}_c{i}"
+        chunks.append(chunk)
+        chunk_to_doc[chunk_id]= doc["doc_id"]
+
+#embedding
+model= SentenceTransformer("all-MiniLM-L6-v2", cache_folder= "./models")
+embeddings = model.encode(chunks,convert_to_numpy=True)
+
+#vector indexing with faiss
+dimension= embeddings.shape[1]
+index= faiss.IndexFlatL2(dimension)
+index.add(np.array(embeddings))
+faiss.write_index(index, "data/policy_index.faiss")
+
+query = "How long does COD refund take?"
+query_emb = model.encode([query], convert_to_numpy=True)
+
+# FAISS search
+D, I = index.search(query_emb, k=3)
+for idx in I[0]:
+    chunk_id = list(chunk_to_doc.keys())[idx]
+    print(chunk_id, "→", chunk_to_doc[chunk_id])
