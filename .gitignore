@@ -21,3 +21,4 @@ data/*.pkl
 
 #flipkart agent
 data/policy_index.faiss
+models/models--sentence-transformers--all-MiniLM-L6-v2/
