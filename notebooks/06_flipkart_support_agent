@@ -211,4 +211,3 @@ avg_recall = sum(recalls) / len(recalls)
 
 print(f"Average Precision@3: {avg_precision:.3f}")
 print(f"Average Recall@3:    {avg_recall:.3f}")
-# %%
