@@ -1,0 +1,160 @@
+import os
+import torch
+import torch.nn as nn
+import torchvision
+import numpy as np
+from PIL import Image
+from sklearn.metrics import confusion_matrix, classification_report
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# ---------------------------------------------------------------------------
+# STEP 1: Rebuild the head architecture and load its trained weights
+# ---------------------------------------------------------------------------
+num_features = 1280  # EfficientNet-B0's classifier[1].in_features — confirm this
+                      # matches the number your earlier script printed
+
+head = nn.Sequential(
+    nn.Linear(num_features, 128),
+    nn.ReLU(),
+    nn.Dropout(0.3),
+    nn.Linear(128, 10)
+)
+head.load_state_dict(torch.load('models/head_state.pt', map_location=device))
+head.eval()
+head.to(device)
+
+# ---------------------------------------------------------------------------
+# STEP 2: Load cached test features (fast — no backbone needed for this)
+# ---------------------------------------------------------------------------
+cached_test = torch.load('data/cached_features/test.pt', map_location=device)
+test_features = cached_test['features'].to(device)
+test_labels = cached_test['labels']
+
+# ---------------------------------------------------------------------------
+# STEP 3: Evaluate using cached features -> confusion matrix, report
+# ---------------------------------------------------------------------------
+class_names = [
+    "T-shirt/top", "Trouser", "Pullover", "Dress", "Coat",
+    "Sandal", "Shirt", "Sneaker", "Bag", "Ankle boot"
+]
+
+with torch.no_grad():
+    logits = head(test_features)
+    preds = logits.argmax(1).cpu().numpy()
+
+true = test_labels.numpy()
+test_accuracy = (preds == true).mean()
+print(f"Test accuracy: {test_accuracy:.4f}")
+
+cm = confusion_matrix(true, preds)
+print("Confusion matrix (rows=true, cols=predicted):")
+print(cm)
+
+report = classification_report(true, preds, target_names=class_names, digits=4)
+print(report)
+
+# Identify top confused off-diagonal pairs
+cm_offdiag = cm.copy()
+np.fill_diagonal(cm_offdiag, 0)
+flat_indices = np.argsort(cm_offdiag, axis=None)[::-1]
+print("\nTop confused pairs (true -> predicted : count):")
+for idx in flat_indices[:5]:
+    i, j = np.unravel_index(idx, cm_offdiag.shape)
+    if cm_offdiag[i, j] > 0:
+        print(f"  {class_names[i]} -> {class_names[j]} : {cm_offdiag[i, j]}")
+
+# ---------------------------------------------------------------------------
+# STEP 4: Build the COMBINED model (real backbone + trained head) for Part 3
+# ---------------------------------------------------------------------------
+class ProductClassifier(nn.Module):
+    def __init__(self, head_module):
+        super().__init__()
+        backbone = torchvision.models.efficientnet_b0(
+            weights=torchvision.models.EfficientNet_B0_Weights.IMAGENET1K_V1
+        )
+        for param in backbone.parameters():
+            param.requires_grad = False
+        backbone.classifier = nn.Identity()  # strip original classifier head
+        self.backbone = backbone
+        self.head = head_module
+
+    def forward(self, x):
+        features = self.backbone(x)
+        return self.head(features)
+
+combined_model = ProductClassifier(head)
+combined_model.eval()
+combined_model.to(device)
+
+os.makedirs('models', exist_ok=True)
+torch.save(combined_model.state_dict(), 'models/product_classifier.pt')
+print("Saved combined model to models/product_classifier.pt")
+
+# ---------------------------------------------------------------------------
+# Loading + single-image-prediction snippet (this is what Part 3 will call)
+# ---------------------------------------------------------------------------
+predict_transform = torchvision.transforms.Compose([
+    torchvision.transforms.Grayscale(num_output_channels=3),
+    torchvision.transforms.Resize((224, 224)),
+    torchvision.transforms.ToTensor(),
+    torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                      std=[0.229, 0.224, 0.225])
+])
+
+def classify_product_image(image_path: str) -> str:
+    """
+    Load a saved ProductClassifier model and predict the FashionMNIST
+    category of a single image file.
+    """
+    model = ProductClassifier(nn.Sequential(
+        nn.Linear(num_features, 128),
+        nn.ReLU(),
+        nn.Dropout(0.3),
+        nn.Linear(128, 10)
+    ))
+    model.load_state_dict(torch.load('models/product_classifier.pt', map_location='cpu'))
+    model.eval()
+
+    image = Image.open(image_path).convert("L")  # grayscale
+    tensor = predict_transform(image).unsqueeze(0)  # add batch dim
+
+    with torch.no_grad():
+        logits = model(tensor)
+        pred_idx = logits.argmax(1).item()
+
+    return class_names[pred_idx]
+
+# ---------------------------------------------------------------------------
+# STEP 5: Export real sample images from the test split as .png files
+# ---------------------------------------------------------------------------
+os.makedirs('data/sample_images', exist_ok=True)
+
+raw_test_dataset = torchvision.datasets.FashionMNIST(
+    root='./data', train=False, download=True
+)  # no transform here — we want the raw 28x28 uint8 images for export
+
+# Pick one sample index per class (first occurrence), up to 5 classes
+seen_labels = {}
+for i in range(len(raw_test_dataset)):
+    label = raw_test_dataset.targets[i].item()
+    if label not in seen_labels:
+        seen_labels[label] = i
+    if len(seen_labels) >= 5:
+        break
+sample_indices = list(seen_labels.values())
+for i in sample_indices:
+    img_array, label = raw_test_dataset.data[i].numpy(), raw_test_dataset.targets[i].item()
+    img = Image.fromarray(img_array, mode="L")
+    label_name = class_names[label].replace("/", "-").replace(" ", "_")
+    filename = f"data/sample_images/{i:02d}_{label_name}.png"
+    img.save(filename)
+    print(f"Saved {filename}")
+
+print("\nDone. Test accuracy: {:.4f}".format(test_accuracy))
+
+""" Since the evaluation accuracy was around 92.63%, no fine tuning was done,
+.The test accuracy was around 91.91%. According to confusion matrix and per-class matrix, 
+the two most confusion pairs are tshirt/top and shirt, shirt/tshirt top. 
+Since tshirt/top and shirt all have similar silhouette the only distinction between a tshirt and shirt is collar, buttons running down, cuffed sleeves in case of long sleeves. 
+These details are visibiliy low to classify from the outline, often being misclassified."""

@@ -8,11 +8,12 @@ A connected system combining a return-risk model, a product-image classifier, an
 - `models/` — trained model artifacts (not tracked in git; regenerate via scripts below)
 
 ## Part 1: Return-Risk Model
-*(instructions to be added)*
+*(instructions)*
 Run 01_preprocessing.ipynb first to generate the split/transformed data files in data/ (not tracked in git) before running any of the model notebooks.
 
 ## Part 2: Product-Image Classifier
-*(instructions to be added)*
+*(instructions)*
+Run part2-image-classifier's train_image_classifier.py to auto download FashionMNIST/ and load data
 
 ## Part 3: LangGraph Support Agent
 *(instructions to be added)*
