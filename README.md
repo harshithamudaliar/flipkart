@@ -31,7 +31,11 @@ Full 10×10 confusion matrix and per-class precision/recall are in
 `notebooks/05_classify_product_image`.
 
 ## Part 3: LangGraph Support Agent
-*(instructions to be added)*
+*(instructions )*
+Run 06_flipkart_support agent for 
 
+#Results
+- Precision@3 is around 0.33 when only one document exists for a query, since most query have one relevant document the precision score is around 0.33 for most of them.
+- Recall@3 is around 0.90 meaning retrieval finds relevant documnets within top 3, making it a more meaningful metric
 ## Example Transcript
 *(to be added)*
