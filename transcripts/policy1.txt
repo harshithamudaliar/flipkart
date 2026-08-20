@@ -1,0 +1,2 @@
+User: How long does COD refund take?
+Agent: {'answer': 'Refunds for Cash on Delivery (COD) orders are processed via bank transfer or UPI.', 'source': 'policy_kb', 'confidence': 0.6301}

@@ -1,0 +1,2 @@
+User: Classify this product image
+Agent: {'answer': 'This looks like: None.', 'source': 'image_classifier_tool', 'confidence': 0.0}

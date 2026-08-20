@@ -1,0 +1,2 @@
+User: What's the return risk for order ORD1042?
+Agent: {'answer': 'Predicted return risk: None (probability None).', 'source': 'return_risk_tool', 'confidence': 0.0}
