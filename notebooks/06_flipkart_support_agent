@@ -211,3 +211,249 @@ avg_recall = sum(recalls) / len(recalls)
 
 print(f"Average Precision@3: {avg_precision:.3f}")
 print(f"Average Recall@3:    {avg_recall:.3f}")
+
+
+
+from typing import TypedDict, Literal, Optional, List, Dict, Any
+import re
+
+from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver
+
+
+GROUNDEDNESS_THRESHOLD = 0.5  # minimum similarity score to trust a retrieved chunk
+
+INJECTION_PATTERNS = [
+    r"ignore (all|previous|prior) (instructions|rules)",
+    r"disregard (all|previous|prior) (instructions|rules)",
+    r"pretend you are",
+    r"you are now",
+    r"forget (all|previous|prior)",
+]
+
+
+# ---------------------------------------------------------------------------
+# 1. State schema
+# ---------------------------------------------------------------------------
+
+class GraphState(TypedDict):
+    messages: List[Dict[str, str]]          # running conversation history
+    query: str                               # current user message
+    intent: Optional[Literal["policy", "return_risk", "product_category"]]
+    retrieved_chunks: Optional[List[Dict[str, Any]]]
+    tool_output: Optional[Dict[str, Any]]
+    blocked: bool                            # set True if input guardrail fires
+    answer: Optional[Dict[str, Any]]         # final structured JSON answer
+    # slots carried across turns, e.g. last order_id mentioned
+    last_order_id: Optional[str]
+
+
+# ---------------------------------------------------------------------------
+# 2. Input guardrail (prompt-injection filter)
+# ---------------------------------------------------------------------------
+
+def check_injection(text: str) -> bool:
+    lowered = text.lower()
+    return any(re.search(p, lowered) for p in INJECTION_PATTERNS)
+
+
+# ---------------------------------------------------------------------------
+# 3. Intent node
+# ---------------------------------------------------------------------------
+
+# Few-shot examples 
+    {"query": "What is your return window for shoes?", "intent": "policy"},
+    {"query": "What's the return risk for order ORD1042?", "intent": "return_risk"},
+
+
+RETURN_RISK_KEYWORDS = ["return risk", "risk score", "likely to return", "order"]
+PRODUCT_KEYWORDS = ["what category", "classify this image", "product image", "what is this item"]
+
+
+def intent_node(state: GraphState) -> GraphState:
+    query = state["query"]
+    if check_injection(query):
+        state["blocked"] = True
+        state["intent"] = None
+        return state
+
+    lowered = query.lower()
+    if any(k in lowered for k in PRODUCT_KEYWORDS):
+        state["intent"] = "product_category"
+    elif any(k in lowered for k in RETURN_RISK_KEYWORDS):
+        state["intent"] = "return_risk"
+    else:
+        state["intent"] = "policy"
+
+    # carry forward an order id mentioned in this turn so later turns
+    # can refer back to it ("what about that order")
+    order_match = re.search(r"\bORD\d+\b", query, re.IGNORECASE)
+    if order_match:
+        state["last_order_id"] = order_match.group(0).upper()
+    elif "that order" in lowered and state.get("last_order_id"):
+        pass  # keep existing last_order_id from earlier turn
+
+    return state
+
+
+def route_after_intent(state: GraphState) -> str:
+    if state.get("blocked"):
+        return "response"
+    if state["intent"] == "policy":
+        return "rag"
+    return "tools"
+
+
+# ---------------------------------------------------------------------------
+# 4. RAG retrieval node
+# ---------------------------------------------------------------------------
+
+def rag_node(state: GraphState) -> GraphState:
+    chunks = retrieve_chunks(state["query"], k=3)
+    return state
+
+
+# ---------------------------------------------------------------------------
+# 5. Tool-calling node
+# ---------------------------------------------------------------------------
+
+def tools_node(state: GraphState) -> GraphState:
+    if state["intent"] == "return_risk":
+        order_id = state.get("last_order_id")
+        # Replace with a real feature lookup for order_id if you have one.
+        order_features = {"order_id": order_id}
+        # result = check_return_risk(order_features)
+        result = {"return_probability": None, "risk_bucket": None}  # TODO
+        state["tool_output"] = result
+    elif state["intent"] == "product_category":
+        image_path = state.get("image_path", "data/sample_images/00_Ankle_boot.png")
+        result = classify_product_image(image_path)
+        result = {"predicted_label": None, "confidence": None}  # TODO
+        state["tool_output"] = result
+    return state
+
+
+# ---------------------------------------------------------------------------
+# 6. Response-generation node (MOCK_LLM, structured JSON output)
+# ---------------------------------------------------------------------------
+
+# System prompt (4S: Specific / Short / Surround / Single) + role prompting.
+# Not sent anywhere in mock mode, but keep it versioned here so it's ready
+# for USE_LIVE_LLM=1 and so it's citable in your README.
+SYSTEM_PROMPT = """You are Flipkart's support assistant.
+You answer only using the retrieved policy text or tool output provided to you below.
+If no sufficiently relevant policy text was retrieved, say you don't have enough
+information rather than guessing.
+Respond with a single JSON object only, matching this schema:
+{"answer": string, "source": "policy_kb" | "return_risk_tool" | "image_classifier_tool", "confidence": float}
+"""
+
+
+def response_node(state: GraphState) -> GraphState:
+    if state.get("blocked"):
+        state["answer"] = {
+            "answer": "I can't process that request.",
+            "source": "policy_kb",
+            "confidence": 0.0,
+        }
+        return state
+
+    if state["intent"] == "policy":
+        chunks = state.get("retrieved_chunks") or []
+        top = chunks[0] if chunks else None
+        if not top or top.get("score", 0) < GROUNDEDNESS_THRESHOLD:
+            score = top.get("score") if top else None
+            state["answer"] = {
+                "answer": (
+                    f"I don't have a confident policy match for that "
+                    f"(top similarity {score}, threshold {GROUNDEDNESS_THRESHOLD})."
+                ),
+                "source": "policy_kb",
+                "confidence": 0.0,
+            }
+        else:
+            state["answer"] = {
+                "answer": top["text"],
+                "source": "policy_kb",
+                "confidence": round(top["score"], 4),
+            }
+
+    elif state["intent"] == "return_risk":
+        out = state.get("tool_output") or {}
+        state["answer"] = {
+            "answer": f"Predicted return risk: {out.get('risk_bucket')} "
+                      f"(probability {out.get('return_probability')}).",
+            "source": "return_risk_tool",
+            "confidence": out.get("return_probability") or 0.0,
+        }
+
+    elif state["intent"] == "product_category":
+        out = state.get("tool_output") or {}
+        state["answer"] = {
+            "answer": f"This looks like: {out.get('predicted_label')}.",
+            "source": "image_classifier_tool",
+            "confidence": out.get("confidence") or 0.0,
+        }
+
+    state["messages"].append({"role": "assistant", "content": str(state["answer"])})
+    return state
+
+
+# ---------------------------------------------------------------------------
+# 7. Build the graph
+# ---------------------------------------------------------------------------
+
+def build_graph():
+    graph = StateGraph(GraphState)
+
+    graph.add_node("intent", intent_node)
+    graph.add_node("rag", rag_node)
+    graph.add_node("tools", tools_node)
+    graph.add_node("response", response_node)
+
+    graph.set_entry_point("intent")
+
+    graph.add_conditional_edges(
+        "intent",
+        route_after_intent,
+        {"rag": "rag", "tools": "tools", "response": "response"},
+    )
+    graph.add_edge("rag", "response")
+    graph.add_edge("tools", "response")
+    graph.add_edge("response", END)
+
+    checkpointer = MemorySaver()
+    return graph.compile(checkpointer=checkpointer)
+
+
+def invoke_turn(app, thread_id: str, user_message: str) -> Dict[str, Any]:
+    """Send one user turn to the graph, persisting state under thread_id."""
+    config = {"configurable": {"thread_id": thread_id}}
+    prior = app.get_state(config).values
+    messages = prior.get("messages", []) if prior else []
+    messages.append({"role": "user", "content": user_message})
+
+    result = app.invoke(
+        {
+            "messages": messages,
+            "query": user_message,
+            "blocked": False,
+            "last_order_id": prior.get("last_order_id") if prior else None,
+        },
+        config=config,
+    )
+    return result
+
+
+if __name__ == "__main__":
+    app = build_graph()
+
+    print("--- Multi-turn conversation (thread A) ---")
+    r1 = invoke_turn(app, "thread-A", "What's the return risk for order ORD1042?")
+    print("Turn 1:", r1["answer"])
+    r2 = invoke_turn(app, "thread-A", "Remind me, what did you say about that order?")
+    print("Turn 2:", r2["answer"], "| last_order_id carried:", r2.get("last_order_id"))
+
+    print("\n--- Fresh conversation (thread B, no prior turns) ---")
+    r3 = invoke_turn(app, "thread-B", "What about that order?")
+    print("Turn 1 (fresh thread):", r3["answer"], "| last_order_id:", r3.get("last_order_id"))
