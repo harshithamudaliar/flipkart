@@ -1,2 +1,2 @@
 User: Classify this product image
-Agent: {'answer': 'This looks like: None.', 'source': 'image_classifier_tool', 'confidence': 0.0}
+Agent: {'answer': 'This looks like: Ankle boot.', 'source': 'image_classifier_tool', 'confidence': 0.9994345307350159}

@@ -331,19 +331,38 @@ def rag_node(state: GraphState) -> GraphState:
 # 5. Tool-calling node
 # ---------------------------------------------------------------------------
 
+
+orders_by_id = df.set_index("order_id").to_dict(orient="index")
+
+
+def get_order_features(order_id: str) -> Optional[dict]:
+    """Look up a real feature row for order_id, dropping the label column."""
+    row = orders_by_id.get(order_id)
+    if row is None:
+        return None
+    row = dict(row)
+    row.pop("returned", None)
+    return row
+
+
 def tools_node(state: GraphState) -> GraphState:
     if state["intent"] == "return_risk":
         order_id = state.get("last_order_id")
-        # Replace with a real feature lookup for order_id if you have one.
-        order_features = {"order_id": order_id}
-        # result = check_return_risk(order_features)
-        result = {"return_probability": None, "risk_bucket": None}  # TODO
-        state["tool_output"] = result
+        order_features = get_order_features(order_id) if order_id else None
+
+        if order_features is None:
+            state["tool_output"] = {
+                "return_probability": None,
+                "risk_bucket": None,
+                "error": f"Unknown or missing order_id: {order_id!r}",
+            }
+        else:
+            state["tool_output"] = check_return_risk(order_features)
+
     elif state["intent"] == "product_category":
         image_path = state.get("image_path", "data/sample_images/00_Ankle_boot.png")
-        result = classify_product_image(image_path)
-        result = {"predicted_label": None, "confidence": None}  # TODO
-        state["tool_output"] = result
+        state["tool_output"] = classify_product_image(image_path)
+
     return state
 
 
