@@ -1,0 +1,2 @@
+User: What is the return window for shoes?
+Agent: {'answer': 'Apparel and footwear items are eligible for return within 30 days of delivery.', 'source': 'policy_kb', 'confidence': 0.5098}

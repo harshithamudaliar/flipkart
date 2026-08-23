@@ -1,0 +1,2 @@
+User: Tell me about your favorite movie.
+Agent: {'answer': "I don't have a confident policy match for that (top similarity 0.08203841745853424, threshold 0.5).", 'source': 'policy_kb', 'confidence': 0.0}

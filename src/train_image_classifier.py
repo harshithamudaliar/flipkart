@@ -17,7 +17,7 @@ test_dataset = torchvision.datasets.FashionMNIST(root='./data', train=False, dow
 
 #stratified split of train into train and val subsets
 splits = sklearn.model_selection.StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
-train_indices, val_indices = next(splits.split(train_dataset.data, train_dataset.targets))
+train_indices, val_indices = next(splits.split(train_dataset.data, train_dataset.targets.numpy()))
 train_subset = torch.utils.data.Subset(train_dataset, train_indices)
 val_subset = torch.utils.data.Subset(train_dataset, val_indices)
 print("Train dataset size:", len(train_subset), "| Validation dataset size:", len(val_subset), "| Test dataset size:", len(test_dataset))
@@ -32,31 +32,37 @@ for param in model.parameters():
 
 #New classifier head
 num_features = model.classifier[1].in_features 
-model.classifier = nn.Linear(num_features, 10)
 model.eval()
 
 # Extract and cache Backbone features before training classifier head
-def extract_features(dataset, model, batch_size=64):
-    loader = torch.utilis.data.DataLoader(dataset, batch_size= batch_size, shuffle =False)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = model.to(device)
 
-    # Temporarily swap out the classifier so forward() returns pooled features
+#extract and cache backbone features before classifier head
+def extract_features(dataset, model, batch_size=64):
+    loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
     original_classifier = model.classifier
     model.classifier = nn.Identity()
 
     all_features = []
     all_labels = []
     with torch.no_grad():
-        for images, labels in loader:
+        for i, (images, labels) in enumerate(loader):
+            images = images.to(device)
             features = model(images)
-            all_features.append(features)
+            all_features.append(features.cpu())
             all_labels.append(labels)
+            if i % 20 == 0:
+                print(f"  batch {i}/{len(loader)}")
 
-    model.classifier = original_classifier  # restore
-
+    model.classifier = original_classifier
     return torch.cat(all_features), torch.cat(all_labels)
 
+print("Extracting train features...")
 train_features, train_labels = extract_features(train_subset, model)
+print("Extracting val features...")
 val_features, val_labels = extract_features(val_subset, model)
+print("Extracting test features...")
 test_features, test_labels = extract_features(test_dataset, model)
 
 print("Cached feature shapes:", train_features.shape, val_features.shape, test_features.shape)
@@ -97,3 +103,16 @@ for epoch in range(EPOCHS):
             correct += (outputs.argmax(1) == labels).sum().item()
             total += labels.size(0)
     print(f"Epoch {epoch+1}/{EPOCHS} — val accuracy: {correct/total:.4f}")
+
+import os
+
+os.makedirs('models', exist_ok=True)
+os.makedirs('data/cached_features', exist_ok=True)
+
+torch.save(head.state_dict(), 'models/head_state.pt')
+
+torch.save({'features': test_features, 'labels': test_labels}, 'data/cached_features/test.pt')
+
+print("Saved head weights to models/head_state.pt")
+print("Saved test features to data/cached_features/test.pt")
+print("num_features (for rebuilding head in notebook):", num_features)

@@ -1,0 +1,137 @@
+{
+  "documents": [
+    {
+      "doc_id": "D1",
+      "title": "Apparel & Footwear Returns",
+      "chunks": [
+        "Apparel and footwear items are eligible for return within 30 days of delivery.",
+        "Products must be unused, unwashed, and returned with original tags and packaging intact.",
+        "Returns are not accepted for innerwear, socks, or swimwear due to hygiene reasons."
+      ]
+    },
+    {
+      "doc_id": "D2",
+      "title": "Electronics Returns",
+      "chunks": [
+        "Electronics such as mobiles, laptops, and tablets have a 7-day return window.",
+        "Returns are accepted only for manufacturing defects, wrong item delivered, or transit damage.",
+        "Customers must include all accessories, warranty cards, and original packaging."
+      ]
+    },
+    {
+      "doc_id": "D3",
+      "title": "Home & Furniture Returns",
+      "chunks": [
+        "Home and furniture products can be returned within 10 days of delivery.",
+        "Items must be in unused condition and returned with all manuals and accessories.",
+        "Customized furniture and mattresses are not eligible for return."
+      ]
+    },
+    {
+      "doc_id": "D4",
+      "title": "COD Refund Timelines",
+      "chunks": [
+        "Refunds for Cash on Delivery (COD) orders are processed via bank transfer or UPI.",
+        "Refunds are initiated within 7 business days after the returned product passes quality check.",
+        "Customers must provide valid bank account or UPI details to complete the refund."
+      ]
+    },
+    {
+      "doc_id": "D5",
+      "title": "Prepaid Refund Timelines",
+      "chunks": [
+        "Refunds for prepaid orders are credited back to the original payment method.",
+        "Refunds are processed within 3 to 5 business days after quality check clearance.",
+        "Credit card refunds may take up to one billing cycle depending on the bank."
+      ]
+    },
+    {
+      "doc_id": "D6",
+      "title": "Standard Delivery SLA",
+      "chunks": [
+        "Standard delivery timelines range between 3–7 business days depending on location.",
+        "Remote or rural areas may take longer, up to 10 business days.",
+        "Customers receive tracking updates via SMS and email."
+      ]
+    },
+    {
+      "doc_id": "D7",
+      "title": "Express Delivery SLA",
+      "chunks": [
+        "Express delivery is available in select cities for eligible products.",
+        "Orders placed before 2 PM are delivered within 24–48 hours.",
+        "Additional charges may apply for express delivery service."
+      ]
+    },
+    {
+      "doc_id": "D8",
+      "title": "Return Pickup Eligibility",
+      "chunks": [
+        "Return pickup is available for most pin codes across India.",
+        "Customers can schedule pickup via the app or website.",
+        "If return pickup is not available, customers must self-ship the product."
+      ]
+    },
+    
+    {
+      "doc_id": "D9",
+      "title": "Exchange Policy",
+      "chunks": [
+        "Exchanges are available for apparel, footwear, and select electronics.",
+        "Customers can request size or color changes within the return window.",
+        "Exchanges are subject to stock availability."
+      ]
+    },
+    {
+      "doc_id": "D10",
+      "title": "Quality Check Process",
+      "chunks": [
+        "All returned products undergo a strict quality check before refund or exchange.",
+        "Items failing quality check are shipped back to the customer.",
+        "Customers are notified of the quality check status via SMS and email."
+      ]
+    },
+    {
+      "doc_id": "D11",
+      "title": "Non-Returnable Items",
+      "chunks": [
+        "Certain categories such as perishable goods, personal care items, and lingerie are non-returnable.",
+        "Non-returnable status is clearly mentioned on the product page.",
+        "Customers are advised to review product details carefully before purchase."
+      ]
+    },
+    {
+        "doc_id": "D12",
+        "title": "Warranty Policy",
+        "chunks": [
+            "Select electronics and appliances come with a manufacturer’s warranty.",
+        "Warranty claims must be raised directly with the brand’s authorized service center.",
+        "Flipkart provides assistance with claim initiation but does not cover warranty repairs itself."
+        ]
+    }
+  ],
+  "retrieval_eval": {
+    "queries": [
+      {
+        "query": "What is the return window for shoes?",
+        "relevant_docs": ["D1"]
+      },
+      {
+        "query": "How long does COD refund take?",
+        "relevant_docs": ["D4"]
+      },
+      {
+        "query": "Delivery timeline for standard orders?",
+        "relevant_docs": ["D6"]
+      },
+      {
+        "query": "Is return pickup available in my area?",
+        "relevant_docs": ["D8"]
+      },
+      {
+        "query": "Can I return a mattress?",
+        "relevant_docs": ["D3", "D11"]
+      }
+    ]
+  }
+}
